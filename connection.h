@@ -25,9 +25,9 @@ private:
     RSA* ServKey;
     RSA* keypair;
     static constexpr char* alphabet =
-        "abcdefghijklmnopqrstuvwxyz\
-        ABCDEFGHIJKLMNOPQRSTUVWXYZ\
-        0123456789";
+"abcdefghijklmnopqrstuvwxyz\
+ABCDEFGHIJKLMNOPQRSTUVWXYZ\
+0123456789";
 
 private:
     std::string randomStringGen(size_t LEN);
