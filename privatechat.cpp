@@ -17,10 +17,15 @@ PrivateChat::PrivateChat(QString username, int intervalMsec, QWidget *parent) :
     this->username = ((PublicChat*)parent)->getUsername();
     this->messageReceiver = username;
     ui->messageReceiver->setText(username);
+    this->initiated = false;
+    this->rc4 = nullptr;
 }
 
 PrivateChat::~PrivateChat()
 {
+    if(this->rc4 != nullptr){
+        delete rc4;
+    }
     delete ui;
 }
 
@@ -44,7 +49,9 @@ void PrivateChat::checkMessageText(){
     QString message = ui->message_box->toPlainText();
     this->addUserMessage(message);
     ui->message_box->clear();
-    emit sendMessage(this->messageReceiver, message);
+    if(this->initiated){
+        emit sendMessage(this->messageReceiver, message);
+    }
 }
 
 void PrivateChat::addUserMessage(QString messageContent){
@@ -70,13 +77,44 @@ void PrivateChat::addMessage(QString messageContent){
 void PrivateChat::checkReceiverStatus(){
     QStringList* userList = ((PublicChat*)parent())->getUserList();
     if(userList->contains(messageReceiver)){
+        if(ui->receiverStatus->text() == "Offline")
+            renewSession();
         ui->receiverStatus->setText("Online");
     }
     else{
+        if(ui->receiverStatus->text() == "Online")
+            expireSession();
         ui->receiverStatus->setText("Offline");
     }
 }
 
 QString PrivateChat::getReceiver(){
     return messageReceiver;
+}
+
+void PrivateChat::setInitiateStatus(bool status){
+    this->initiated = status;
+}
+
+bool PrivateChat::getInitiateStatus(){
+    return this->initiated;
+}
+
+RC4Algorithm* PrivateChat::getRC4(){
+    return this->rc4;
+}
+
+void PrivateChat::InitiateRC4(string key){
+    this->rc4 = new RC4Algorithm(key);
+}
+
+void PrivateChat::expireSession(){
+    delete this->rc4;
+    this->rc4 = nullptr;
+    this->initiated = false;
+}
+
+void PrivateChat::renewSession(){
+    this->initiator = true;
+    emit newSession(this->messageReceiver, (QObject*)this);
 }

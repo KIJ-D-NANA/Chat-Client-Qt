@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QTimer>
+#include "rc4algorithm.h"
 
 namespace Ui {
 class PrivateChat;
@@ -19,10 +20,17 @@ public:
     void setReceiver(QString messageReceiver);
     void setTimerIntrval(int msec);
     void addMessage(QString messageContent);
+    void setInitiateStatus(bool status);
+    bool getInitiateStatus();
+    RC4Algorithm* getRC4();
+    void InitiateRC4(std::string key);
+
+    bool initiator;
 
 signals:
     void sendMessage(QString messageReceiver, QString messageContent);
     void windowClosed(QObject* window);
+    void newSession(QString messageReceiver, QObject* sender);
 
 public slots:
     void checkMessageText();
@@ -33,11 +41,15 @@ private:
     QString messageReceiver;
     QTimer timer;
     QString username;
+    bool initiated;
+    RC4Algorithm* rc4;
 
 private:
     void showEvent(QShowEvent* event);
     void closeEvent(QCloseEvent* event);
     void addUserMessage(QString messageContent);
+    void expireSession();
+    void renewSession();
 };
 
 #endif // PRIVATECHAT_H

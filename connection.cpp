@@ -4,6 +4,10 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <iostream>
+#include <iterator>
+#include <vector>
+#include <random>
+#include <algorithm>
 #include <openssl/pem.h>
 #include <openssl/err.h>
 
@@ -70,6 +74,14 @@ void Connection::disconnected(){
     else{
         socket->deleteLater();
     }
+}
+
+void Connection::newSessionHandler(QString receiver, QObject *sender){
+    //TODO: Initiate new session to that user
+    PrivateChat* privateChat = (PrivateChat*)sender;
+    privateChat->InitiateRC4(randomStringGen(1024 / 8 - 40));
+    QString message("Mode: GetPubKey\r\nUser: " + privateChat->getReceiver() + "\r\n.\r\n");
+    socket->write(message.toUtf8());
 }
 
 void Connection::outgoingPublicMessage(QString messageContent){
@@ -148,19 +160,35 @@ void Connection::checkUserList(){
 void Connection::newPrivateWindow(QObject *privateWindow){
     //Add signal listener to the new window
     PrivateChat* privateChat = (PrivateChat*)privateWindow;
-    // TODO : Distribute key with another client
     connect(privateChat, SIGNAL(sendMessage(QString,QString)), this, SLOT(outgoingPrivateMessage(QString,QString)));
+    // TODO : Distribute key with another client
+    privateChat->InitiateRC4(randomStringGen(1024 / 8 - 40));
+    QString message("Mode: GetPubKey\r\nUser: " + privateChat->getReceiver() + "\r\n.\r\n");
+    socket->write(message.toUtf8());
 }
 
-void Connection::setServerKeyPair(char *key, size_t key_len){
+void Connection::setServerKeyPair(const char *key, size_t key_len){
     BIO* bufio;
     bufio = BIO_new_mem_buf((void*)key, key_len);
     PEM_read_bio_RSAPublicKey(bufio, &ServKey, NULL, NULL);
+    BIO_free_all(bufio);
 }
 
 int Connection::InitRSA(){
     BIGNUM *bne = BN_new();
     BN_set_word(bne, RSA_F4);
     int r = RSA_generate_key_ex(keypair, 1024, bne, NULL);
+    BN_free(bne);
     return r;
+}
+
+std::string Connection::randomStringGen(size_t LEN){
+    std::random_device rd;
+    std::default_random_engine rng(rd());
+    std::uniform_int_distribution<> dist(0,sizeof(alphabet)/sizeof(*alphabet)-2);
+
+    std::string strs;
+    strs.reserve(LEN);
+    std::generate_n(strs.begin(), LEN, [&](){return alphabet[dist(rng)];});
+    return strs;
 }
