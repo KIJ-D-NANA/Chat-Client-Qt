@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <stdio.h>
 
 Connection::Connection(int refreshRate_msec, QObject *parent) : QObject(parent)
 {
@@ -35,25 +36,11 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         PublicChat* thePublic = (PublicChat*)parent();
         connect(thePublic, SIGNAL(sendMessage(QString)), this, SLOT(outgoingPublicMessage(QString)));
         isApplicationRunning = true;
+        this->SetRC4Key();
+        this->postPubKey();
+
+        //TODO: Encrypt the username
         socket->write("Mode: Username\r\n" + Username.toUtf8() + "\r\n.\r\n");
-        // Sending Public key to the server
-        size_t pub_len;
-        char* pub_key;
-        BIO* pub = BIO_new(BIO_s_mem());
-        PEM_write_bio_RSAPublicKey(pub, keypair);
-        pub_len = BIO_pending(pub);
-        pub_key = (char*) malloc(pub_len + 1);
-        BIO_read(pub, pub_key, pub_len);
-        pub_key[pub_len] = '\0';
-        char* encrypt = (char*) malloc(4096);
-        int encrypt_len = RSA_public_encrypt(pub_len, (unsigned char*)pub_key, (unsigned char*)encrypt, ServKey, RSA_PKCS1_OAEP_PADDING);
-        encrypt[encrypt_len] = '\0';
-        QString setPub("Mode: SetPubKey\r\n" + QString::fromUtf8(encrypt, encrypt_len) + "\r\n.\r\n");
-        socket->write(setPub.toUtf8());
-        free(encrypt);
-        free(pub_key);
-        BIO_free_all(pub);
-        //
 
         timer.start();
         return true;
@@ -191,4 +178,51 @@ std::string Connection::randomStringGen(size_t LEN){
     strs.reserve(LEN);
     std::generate_n(strs.begin(), LEN, [&](){return alphabet[dist(rng)];});
     return strs;
+}
+
+void Connection::postPubKey(){
+    // Sending Public key to the server
+    size_t pub_len;
+    char* pub_key;
+    BIO* pub = BIO_new(BIO_s_mem());
+    PEM_write_bio_RSAPublicKey(pub, keypair);
+    pub_len = BIO_pending(pub);
+    pub_key = (char*) malloc(pub_len + 1);
+    BIO_read(pub, pub_key, pub_len);
+    pub_key[pub_len] = '\0';
+    char* encrypt = (char*) malloc(4096);
+    int encrypt_len = RSA_public_encrypt(pub_len, (unsigned char*)pub_key, (unsigned char*)encrypt, ServKey, RSA_PKCS1_OAEP_PADDING);
+    encrypt[encrypt_len] = '\0';
+    QString setPub("Mode: SetPubKey\r\n" + QString::fromUtf8(encrypt, encrypt_len) + "\r\n.\r\n");
+    socket->write(setPub.toUtf8());
+    free(encrypt);
+    free(pub_key);
+    BIO_free_all(pub);
+    //
+}
+
+void Connection::SetRC4Key(){
+    std::string rc4key = randomStringGen(1024 / 8 - 40);
+    this->rc4 = new RC4Algorithm(rc4key);
+    //TODO: Send key to server
+
+}
+
+bool Connection::checkIntegrity(QString raw, QString hash){
+//    char raw_cstr[raw.length()];
+    QByteArray ba = raw.toLatin1();
+    char* temp = ba.data();
+    QByteArray ba2 = hash.toLatin1();
+    char* temp2 = ba2.data();
+    return this->checkIntegrity(raw.length(), (unsigned char*)temp, temp2);
+}
+
+bool Connection::checkIntegrity(size_t input_len, unsigned char *raw, char *hash_string){
+    char hash_out[SHA_DIGEST_LENGTH + 1];
+    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
+    SHA1(raw, input_len, (unsigned char*)hash_out);
+    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
+        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
+    }
+    return strcmp(hash_value, hash_string) == 0 ? true : false;
 }

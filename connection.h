@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <string>
 #include <openssl/rsa.h>
+#include "rc4algorithm.h"
 
 class Connection : public QObject
 {
@@ -28,9 +29,14 @@ private:
 "abcdefghijklmnopqrstuvwxyz\
 ABCDEFGHIJKLMNOPQRSTUVWXYZ\
 0123456789";
+    RC4Algorithm* rc4;
 
 private:
     std::string randomStringGen(size_t LEN);
+    void SetRC4Key();
+    void postPubKey();
+    bool checkIntegrity(QString raw, QString hash);
+    bool checkIntegrity(size_t input_len, unsigned char* raw, char* hash_string);
 
 signals:
 
