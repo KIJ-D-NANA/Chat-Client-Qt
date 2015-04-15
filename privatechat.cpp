@@ -19,6 +19,7 @@ PrivateChat::PrivateChat(QString username, int intervalMsec, QWidget *parent) :
     ui->messageReceiver->setText(username);
     this->initiated = false;
     this->rc4 = nullptr;
+    cryptedKey = "";
 }
 
 PrivateChat::~PrivateChat()
@@ -50,7 +51,7 @@ void PrivateChat::checkMessageText(){
     this->addUserMessage(message);
     ui->message_box->clear();
     if(this->initiated){
-        emit sendMessage(this->messageReceiver, message);
+        emit sendMessage(this->messageReceiver, message, this->rc4);
     }
 }
 

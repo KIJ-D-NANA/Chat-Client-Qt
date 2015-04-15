@@ -24,11 +24,12 @@ public:
     bool getInitiateStatus();
     RC4Algorithm* getRC4();
     void InitiateRC4(std::string key);
+    QString cryptedKey;
 
     bool initiator;
 
 signals:
-    void sendMessage(QString messageReceiver, QString messageContent);
+    void sendMessage(QString messageReceiver, QString messageContent, RC4Algorithm* ClientRC4Key);
     void windowClosed(QObject* window);
     void newSession(QString messageReceiver, QObject* sender);
 

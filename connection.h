@@ -48,7 +48,7 @@ public slots:
     void checkUserList();
     void disconnected();
     void outgoingPublicMessage(QString messageContent);
-    void outgoingPrivateMessage(QString receiver, QString messageContent);
+    void outgoingPrivateMessage(QString receiver, QString messageContent, RC4Algorithm* ClientRC4Key);
     void newPrivateWindow(QObject* privateWindow);
     void newSessionHandler(QString receiver, QObject* sender);
 };
