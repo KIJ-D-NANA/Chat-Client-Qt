@@ -115,15 +115,15 @@ void Connection::incomingMessage(){
             }
             //Send message to the window
             if(destination != nullptr){
-                destination->addMessage(stringList.at(2));
+                if(destination->getRC4() != nullptr){
+                    QString decrypted = destination->getRC4()->crypt(stringList.at(2));
+                    QStringList content = decrypted.split("\r\n.,\r\n");
+                    if(!content.isEmpty()){
+                        if(this->checkIntegrity(content.at(0), content.at(1)))
+                            destination->addMessage(content.at(0));
+                    }
+                }
             }
-            else{
-                destination = PublicWindow->addPrivateChat(username);
-                connect(destination, SIGNAL(sendMessage(QString,QString,RC4Algorithm*)), this, SLOT(outgoingPrivateMessage(QString,QString,RC4Algorithm*)));
-                destination->addMessage(stringList.at(2));
-            }
-            destination->show();
-//            destination->activateWindow();
 
         }
         else if(stringList.at(0) == "Mode: List"){
@@ -166,6 +166,11 @@ void Connection::incomingMessage(){
                         QString content = destination->getRC4()->crypt(random_message + "\r\n.,\r\n" + random_hash);
                         socket->write("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + content + "\r\n.\r\n");
                     }
+                    else{
+                        QList<PrivateChat*>* PrivateList = PublicWindow->getPrivateChatList();
+                        PrivateList->removeOne(destination);
+                        delete destination;
+                    }
                 }
                 else{
                     string clientrc4 = this->randomStringGen(1024 / 8 - 40);
@@ -179,9 +184,10 @@ void Connection::incomingMessage(){
                     QString message("Mode: InitPriv\r\nUser: " + destination->getReceiver() + "\r\n" + QString::fromUtf8(encrypt2, encrypt2_len) + "\r\n.\r\n");
                     socket->write(message.toUtf8());
                 }
+                RSA_free(clientKey);
             }
         }
-        else if(stringList.at(2) == "Mode: AccPriv"){
+        else if(stringList.at(0) == "Mode: AccPriv"){
             QString username = stringList.at(1);
             username.remove(0, 6);
             PrivateChat* destination = nullptr;
@@ -194,9 +200,31 @@ void Connection::incomingMessage(){
             if(destination != nullptr && destination->initiator && !destination->getInitiateStatus()){
                 QString decrypted = destination->getRC4()->crypt(stringList.at(2));
                 QStringList thePair = decrypted.split("\r\n.,\r\n");
-                if(this->checkIntegrity(thePair.at(0), thePair.at(1))){
-                    destination->setInitiateStatus(true);
+                if(!thePair.empty()){
+                    if(this->checkIntegrity(thePair.at(0), thePair.at(1))){
+                        destination->setInitiateStatus(true);
+                    }
                 }
+            }
+        }
+        else if(stringList.at(0) == "Mode: InitPriv"){
+            QString username = stringList.at(1);
+            username.remove(0, 6);
+            PrivateChat* destination = nullptr;
+            for(PrivateChat* now : *(PublicWindow->getPrivateChatList())){
+                if(now->getReceiver() == username){
+                    destination = now;
+                    break;
+                }
+            }
+            if(destination == nullptr){
+                destination = PublicWindow->addPrivateChat(username);
+                QByteArray ba = stringList.at(2).toLatin1();
+                char decrypt[4096];
+                int decrypt_len = RSA_private_decrypt(stringList.at(2).length(), (unsigned char*)ba.data(), (unsigned char*)decrypt, keypair, RSA_PKCS1_OAEP_PADDING);
+                destination->cryptedKey = QString::fromUtf8(decrypt, decrypt_len);
+                destination->initiator = false;
+                socket->write("Mode: GetPubKey\r\nUser: " + username + "\r\n.\r\n");
             }
         }
 
