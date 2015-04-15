@@ -76,7 +76,8 @@ void Connection::newSessionHandler(QString receiver, QObject *sender){
 void Connection::outgoingPublicMessage(QString messageContent){
     PublicChat* thePublic = (PublicChat*)parent();
     RC4Algorithm *rc4 = thePublic->getRC4();
-    QString encryptedContent= rc4->crypt(messageContent);
+    QString hash_value = this->toSHA1(messageContent);
+    QString encryptedContent= rc4->crypt(messageContent + "\r\n.,\r\n" + hash_value);
     qDebug() << encryptedContent;
     QString message("Mode: Public\r\n" + encryptedContent + "\r\n.\r\n");
     socket->write(message.toUtf8());
@@ -98,7 +99,11 @@ void Connection::incomingMessage(){
             qDebug() << stringList.at(2);
             RC4Algorithm *rc4 = thePublic->getRC4();
             QString mesg = rc4->crypt(stringList.at(2));
-            PublicWindow->addMessage(newString, mesg);
+            QStringList content = mesg.split("\r\n.,\r\n");
+            if(!content.isEmpty()){
+                if(this->checkIntegrity(content.at(0), content.at(1)))
+                    PublicWindow->addMessage(newString, content.at(0));
+            }
         }
         else if(stringList.at(0) == "Mode: Private"){
             //Check private window
@@ -150,7 +155,7 @@ void Connection::incomingMessage(){
                 bufio = BIO_new_mem_buf((void*)ba.data(), stringList.at(2).length());
                 PEM_read_bio_RSAPublicKey(bufio, &clientKey, NULL, NULL);
                 BIO_free_all(bufio);
-                if(destination->cryptedKey != ""){
+                if(destination->cryptedKey != "" && !destination->initiator){
                     QByteArray ba2 = destination->cryptedKey.toLatin1();
                     char decrypted[4096];
                     int decrypt_len = RSA_public_decrypt(destination->cryptedKey.length(), (unsigned char*)ba2.data(), (unsigned char*)decrypted, clientKey, RSA_PKCS1_PADDING);
