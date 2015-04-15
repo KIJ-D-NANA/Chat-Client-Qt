@@ -8,6 +8,8 @@
 #include <openssl/rsa.h>
 #include "rc4algorithm.h"
 
+#include "rsaalgorithm.h"
+
 class Connection : public QObject
 {
     Q_OBJECT
@@ -17,7 +19,7 @@ public:
     bool connectToHost(QString IP, quint16 Port, QString Username);
     void setServerKeyPair(const char* key, size_t key_len);
     int InitRSA();
-
+    void getPubKey(QString name);
 private:
     QTimer timer;
     QTcpSocket* socket;

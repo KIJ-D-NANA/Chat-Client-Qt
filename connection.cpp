@@ -15,7 +15,6 @@
 Connection::Connection(int refreshRate_msec, QObject *parent) : QObject(parent)
 {
     timer.setInterval(refreshRate_msec);
-    this->InitRSA();
     connect(&timer, SIGNAL(timeout()), this, SLOT(checkUserList()));
     isApplicationRunning = false;
 }
@@ -43,6 +42,16 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         QString sha_name = this->toSHA1(Username);
         QString encrypted = rc4->crypt(Username + "\r\n.,\r\n" + sha_name);
         socket->write("Mode: Username\r\n" + encrypted.toUtf8() + "\r\n.\r\n");
+//=======
+//        rsa = new RSAAlgorithm();
+//        rsa->setServerKeyPair(CA,sizeof(CA));
+//        socket->write("Mode: Username\r\n" + Username.toUtf8() + "\r\n.\r\n");
+//        // Sending Public key to the server
+
+//        QString setPub("Mode: SetPubKey\r\n" + QString::fromUtf8(rsa->getPublicKey()) + "\r\n.\r\n");
+//        socket->write(setPub.toUtf8());
+
+//>>>>>>> fb9fdcb363da591b3fae71982ede2bf1bace005e
 
         timer.start();
         return true;
@@ -232,8 +241,11 @@ void Connection::incomingMessage(){
                 socket->write("Mode: GetPubKey\r\nUser: " + username + "\r\n.\r\n");
             }
         }
-
     }
+}
+void Connection::getPubKey(QString name){
+    QString message("Mode: GetPubKey\r\nUser: " + name + "\r\n.\r\n");
+    socket->write(message.toUtf8());
 }
 
 void Connection::outgoingPrivateMessage(QString receiver, QString messageContent, RC4Algorithm *ClientRC4Key){
@@ -257,6 +269,7 @@ void Connection::newPrivateWindow(QObject *privateWindow){
     QString message("Mode: GetPubKey\r\nUser: " + privateChat->getReceiver() + "\r\n.\r\n");
     socket->write(message.toUtf8());
 }
+
 
 void Connection::setServerKeyPair(const char *key, size_t key_len){
     BIO* bufio;

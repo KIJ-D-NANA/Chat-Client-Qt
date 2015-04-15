@@ -17,6 +17,7 @@ public:
 
 private:
     Ui::ConnectWindow *ui;
+
     const char* CA =
 "-----BEGIN PUBLIC KEY-----\n\
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlddRwveTRS0/9n8axoeO\n\
