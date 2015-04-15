@@ -68,7 +68,7 @@ void Connection::disconnected(){
 void Connection::newSessionHandler(QString receiver, QObject *sender){
     //TODO: Initiate new session to that user
     PrivateChat* privateChat = (PrivateChat*)sender;
-    privateChat->InitiateRC4(randomStringGen(1024 / 8 - 40));
+    privateChat->InitiateRC4(randomStringGen(4));
     QString message("Mode: GetPubKey\r\nUser: " + privateChat->getReceiver() + "\r\n.\r\n");
     socket->write(message.toUtf8());
 }
@@ -151,7 +151,7 @@ void Connection::incomingMessage(){
             if(destination != nullptr && !destination->getInitiateStatus()){
                 BIO* bufio;
                 RSA* clientKey;
-                QByteArray ba = stringList.at(2).toLatin1();
+                QByteArray ba = this->rc4->crypt(stringList.at(2)).toLatin1();
                 bufio = BIO_new_mem_buf((void*)ba.data(), stringList.at(2).length());
                 PEM_read_bio_RSAPublicKey(bufio, &clientKey, NULL, NULL);
                 BIO_free_all(bufio);
@@ -169,7 +169,8 @@ void Connection::incomingMessage(){
                         QString random_message = QString::fromStdString(this->randomStringGen(200));
                         QString random_hash = this->toSHA1(random_message);
                         QString content = destination->getRC4()->crypt(random_message + "\r\n.,\r\n" + random_hash);
-                        socket->write("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + content + "\r\n.\r\n");
+                        QString message("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + content + "\r\n.\r\n");
+                        socket->write(message.toUtf8());
                     }
                     else{
                         QList<PrivateChat*>* PrivateList = PublicWindow->getPrivateChatList();
@@ -178,12 +179,12 @@ void Connection::incomingMessage(){
                     }
                 }
                 else{
-                    string clientrc4 = this->randomStringGen(1024 / 8 - 40);
+                    string clientrc4 = this->randomStringGen(4);
                     QString hash_value = this->toSHA1(clientrc4);
                     QString To_encrypt = QString::fromStdString(clientrc4) + "\r\n.,\r\n" + hash_value;
                     QByteArray ba2 = To_encrypt.toLatin1();
                     char encrypt[4096];
-                    int encrypt_len = RSA_private_encrypt(encrypt.length(), (unsigned char*)ba2.data(), (unsigned char*)encrypt, keypair, RSA_PKCS1_PADDING);
+                    int encrypt_len = RSA_private_encrypt(To_encrypt.length(), (unsigned char*)ba2.data(), (unsigned char*)encrypt, keypair, RSA_PKCS1_PADDING);
                     char encrypt2[4096];
                     int encrypt2_len = RSA_public_encrypt(encrypt_len, (unsigned char*)encrypt, (unsigned char*)encrypt2, clientKey, RSA_PKCS1_OAEP_PADDING);
                     QString message("Mode: InitPriv\r\nUser: " + destination->getReceiver() + "\r\n" + QString::fromUtf8(encrypt2, encrypt2_len) + "\r\n.\r\n");
@@ -229,7 +230,8 @@ void Connection::incomingMessage(){
                 int decrypt_len = RSA_private_decrypt(stringList.at(2).length(), (unsigned char*)ba.data(), (unsigned char*)decrypt, keypair, RSA_PKCS1_OAEP_PADDING);
                 destination->cryptedKey = QString::fromUtf8(decrypt, decrypt_len);
                 destination->initiator = false;
-                socket->write("Mode: GetPubKey\r\nUser: " + username + "\r\n.\r\n");
+                QString message("Mode: GetPubKey\r\nUser: " + username + "\r\n.\r\n");
+                socket->write(message.toUtf8());
             }
         }
 
@@ -261,27 +263,41 @@ void Connection::newPrivateWindow(QObject *privateWindow){
 void Connection::setServerKeyPair(const char *key, size_t key_len){
     BIO* bufio;
     bufio = BIO_new_mem_buf((void*)key, key_len);
-    PEM_read_bio_RSAPublicKey(bufio, &ServKey, NULL, NULL);
+    PEM_read_bio_RSAPublicKey(bufio, &ServKey, 0, NULL);
     BIO_free_all(bufio);
 }
 
 int Connection::InitRSA(){
     BIGNUM *bne = BN_new();
     BN_set_word(bne, RSA_F4);
+    keypair = RSA_new();
     int r = RSA_generate_key_ex(keypair, 2048, bne, NULL);
     BN_free(bne);
     return r;
 }
 
 std::string Connection::randomStringGen(size_t LEN){
-    std::random_device rd;
-    std::default_random_engine rng(rd());
-    std::uniform_int_distribution<> dist(0,sizeof(alphabet)/sizeof(*alphabet)-2);
+//    std::random_device rd;
+//    std::default_random_engine rng(rd());
+//    std::uniform_int_distribution<> dist(0,sizeof(alphabet)/sizeof(*alphabet)-2);
 
-    std::string strs;
-    strs.reserve(LEN);
-    std::generate_n(strs.begin(), LEN, [&](){return alphabet[dist(rng)];});
-    return strs;
+//    std::string strs;
+//    strs.reserve(LEN);
+//    std::generate_n(strs.begin(), LEN, [&](){return alphabet[dist(rng)];});
+//    return strs;
+    int length = LEN;
+    auto randchar = []() -> char
+    {
+        const char charset[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+        const size_t max_index = (sizeof(charset) - 1);
+        return charset[ rand() % max_index ];
+    };
+    std::string str(length,0);
+    std::generate_n( str.begin(), length, randchar );
+    return str;
 }
 
 void Connection::postPubKey(){
@@ -304,7 +320,9 @@ void Connection::postPubKey(){
 }
 
 void Connection::SetRC4Key(){
-    std::string rc4key = randomStringGen(1024 / 8 - 40);
+    std::string rc4key = randomStringGen(4);
+    qDebug() << QString::fromStdString(rc4key);
+    RSA* serverKey = this->ServKey;
     this->rc4 = new RC4Algorithm(rc4key);
     //TODO: Send key to server
     QString key_hash = this->toSHA1(rc4key);
@@ -312,7 +330,7 @@ void Connection::SetRC4Key(){
     QByteArray ba = raw_data.toLatin1();
     char* toEncrypted = ba.data();
     char encrypt[4096];
-    int encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, ServKey, RSA_PKCS1_OAEP_PADDING);
+    int encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, serverKey, RSA_PKCS1_OAEP_PADDING);
     QString message = "Mode: SetRC4Key\r\n";
     for(int i = 0; i < encrypt_len; i++)
         message += *(encrypt + i);
