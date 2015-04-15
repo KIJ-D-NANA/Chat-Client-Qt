@@ -40,7 +40,9 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         this->postPubKey();
 
         //TODO: Encrypt the username
-        socket->write("Mode: Username\r\n" + Username.toUtf8() + "\r\n.\r\n");
+        QString sha_name = this->toSHA1(Username);
+        QString encrypted = rc4->crypt(Username + "\r\n.,\r\n" + sha_name);
+        socket->write("Mode: Username\r\n" + encrypted.toUtf8() + "\r\n.\r\n");
 
         timer.start();
         return true;
@@ -190,12 +192,10 @@ void Connection::postPubKey(){
     pub_key = (char*) malloc(pub_len + 1);
     BIO_read(pub, pub_key, pub_len);
     pub_key[pub_len] = '\0';
-    char* encrypt = (char*) malloc(4096);
-    int encrypt_len = RSA_public_encrypt(pub_len, (unsigned char*)pub_key, (unsigned char*)encrypt, ServKey, RSA_PKCS1_OAEP_PADDING);
-    encrypt[encrypt_len] = '\0';
-    QString setPub("Mode: SetPubKey\r\n" + QString::fromUtf8(encrypt, encrypt_len) + "\r\n.\r\n");
-    socket->write(setPub.toUtf8());
-    free(encrypt);
+    QString sha_value = this->toSHA1(pub_key, pub_len);
+    QString content = this->rc4->crypt(QString::fromUtf8(pub_key, pub_len) + "\r\n.,\r\n" + sha_value);
+    QString message("Mode: SetPubKey\r\n" + content + "\r\n.\r\n");
+    socket->write(message.toUtf8());
     free(pub_key);
     BIO_free_all(pub);
     //
@@ -205,7 +205,17 @@ void Connection::SetRC4Key(){
     std::string rc4key = randomStringGen(1024 / 8 - 40);
     this->rc4 = new RC4Algorithm(rc4key);
     //TODO: Send key to server
-
+    QString key_hash = this->toSHA1(rc4key);
+    QString raw_data = QString::fromStdString(rc4key) + "\r\n.,\r\n" + key_hash;
+    QByteArray ba = raw_data.toLatin1();
+    char* toEncrypted = ba.data();
+    char encrypt[4096];
+    int encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, ServKey, RSA_PKCS1_OAEP_PADDING);
+    QString message = "Mode: SetRC4Key\r\n";
+    for(int i = 0; i < encrypt_len; i++)
+        message += *(encrypt + i);
+    message += "\r\n.\r\n";
+    socket->write(message.toUtf8());
 }
 
 bool Connection::checkIntegrity(QString raw, QString hash){
@@ -225,4 +235,23 @@ bool Connection::checkIntegrity(size_t input_len, unsigned char *raw, char *hash
         sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
     }
     return strcmp(hash_value, hash_string) == 0 ? true : false;
+}
+
+QString Connection::toSHA1(QString data){
+    QByteArray ba = data.toLatin1();
+    return this->toSHA1(ba.data(), data.length());
+}
+
+QString Connection::toSHA1(string data){
+    return this->toSHA1(data.c_str(), data.size());
+}
+
+QString Connection::toSHA1(const char *data, size_t data_len){
+    char hash_out[SHA_DIGEST_LENGTH + 1];
+    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
+    SHA1((unsigned char*)data, data_len, (unsigned char*)hash_out);
+    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
+        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
+    }
+    return QString::fromUtf8(hash_value);
 }
