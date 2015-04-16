@@ -20,7 +20,7 @@ bool SHA1Hash::checkIntegrity(QString raw, QString hash){
     return this->checkIntegrity(raw.length(), (unsigned char*)temp, temp2);
 }
 
-bool SHA1Hash::checkIntegrity(size_t input_len, unsigned char *raw, char *hash_string){
+bool SHA1Hash::checkIntegrity(size_t input_len, unsigned char *raw, const char *hash_string){
     char hash_out[SHA_DIGEST_LENGTH + 1];
     char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
     SHA1(raw, input_len, (unsigned char*)hash_out);
@@ -31,7 +31,7 @@ bool SHA1Hash::checkIntegrity(size_t input_len, unsigned char *raw, char *hash_s
 }
 
 bool SHA1Hash::checkIntegrity(std::string raw, std::string hash){
-    return this->checkIntegrity(raw.length(), raw.c_str(), hash.c_str());
+    return this->checkIntegrity(raw.length(), (unsigned char*)raw.c_str(), hash.c_str());
 }
 
 QString SHA1Hash::toSHA1(QString data){
@@ -39,7 +39,7 @@ QString SHA1Hash::toSHA1(QString data){
     return this->toSHA1(ba.data(), data.length());
 }
 
-QString SHA1Hash::toSHA1(string data){
+QString SHA1Hash::toSHA1(std::string data){
     return this->toSHA1(data.c_str(), data.size());
 }
 

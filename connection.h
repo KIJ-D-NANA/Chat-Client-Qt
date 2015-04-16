@@ -8,6 +8,7 @@
 #include <openssl/rsa.h>
 #include "rc4algorithm.h"
 #include "sha1hash.h"
+#include "rsacrpto.h"
 
 class Connection : public QObject
 {
@@ -17,7 +18,6 @@ public:
     ~Connection();
     bool connectToHost(QString IP, quint16 Port, QString Username);
     void setServerKeyPair(const char* key, size_t key_len);
-    int InitRSA();
 
 private:
     QTimer timer;
@@ -25,8 +25,9 @@ private:
     QTcpSocket* socket;
     bool isApplicationRunning;
     QString username;
-    RSA* ServKey;
-    RSA* keypair;
+    RSACrpto ServKey;
+    RSACrpto ClientKey;
+
     static constexpr char* alphabet =
 "abcdefghijklmnopqrstuvwxyz\
 ABCDEFGHIJKLMNOPQRSTUVWXYZ\
@@ -47,7 +48,7 @@ public slots:
     void outgoingPublicMessage(QString messageContent);
     void outgoingPrivateMessage(QString receiver, QString messageContent, RC4Algorithm* ClientRC4Key);
     void newPrivateWindow(QObject* privateWindow);
-    void newSessionHandler(QString receiver, QObject* sender);
+    void newSessionHandler(QObject* sender);
 };
 
 #endif // CONNECTION_H

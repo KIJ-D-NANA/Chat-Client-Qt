@@ -36,7 +36,11 @@ public:
     QString private_encrypt(QString data, int padding = RSA_PKCS1_PADDING);
     QString private_encrypt(std::string data, int padding = RSA_PKCS1_PADDING);
     QString private_encrypt(const char* data, int data_len = -1, int padding = RSA_PKCS1_PADDING);
+
     RSA* getKey();
+
+    QString getPubKey();
+    QString getPrivateKey();
 private:
     char* public_key;
     char* private_key;

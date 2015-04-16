@@ -28,7 +28,7 @@ RSA* RSACrpto::InitKey(size_t key_len){
     BIGNUM *bne = BN_new();
     BN_set_word(bne, RSA_F4);
     keypair = RSA_new();
-    int r = RSA_generate_key_ex(keypair, key_len, bne, NULL);
+    RSA_generate_key_ex(keypair, key_len, bne, NULL);
     BN_free(bne);
 
     BIO* pri = BIO_new(BIO_s_mem());
@@ -44,7 +44,7 @@ RSA* RSACrpto::InitKey(size_t key_len){
     public_key = (char*)malloc(pub_len + 1);
 
     BIO_read(pri, private_key, pri_len);
-    BUI_read(pub, public_key, pub_len);
+    BIO_read(pub, public_key, pub_len);
 
     private_key[pri_len] = '\0';
     public_key[pub_len] = '\0';
@@ -255,4 +255,12 @@ QString RSACrpto::private_decrypt(std::string data, int padding){
 
 RSA* RSACrpto::getKey(){
     return this->keypair;
+}
+
+QString RSACrpto::getPubKey(){
+    return QString::fromUtf8(public_key);
+}
+
+QString RSACrpto::getPrivateKey(){
+    return QString::fromUtf8(private_key);
 }
