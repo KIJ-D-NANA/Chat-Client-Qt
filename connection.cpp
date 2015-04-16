@@ -38,9 +38,9 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         isApplicationRunning = true;
         this->SetRC4Key();
         this->postPubKey();
-
+        qDebug() << "Stop Here!!";
         //TODO: Encrypt the username
-        QString sha_name = this->toSHA1(Username);
+        QString sha_name = HashEngine.toSHA1(Username);
         QString encrypted = rc4->crypt(Username + "\r\n.,\r\n" + sha_name);
         socket->write("Mode: Username\r\n" + encrypted.toUtf8() + "\r\n.\r\n");
 
@@ -76,7 +76,7 @@ void Connection::newSessionHandler(QString receiver, QObject *sender){
 void Connection::outgoingPublicMessage(QString messageContent){
     PublicChat* thePublic = (PublicChat*)parent();
     RC4Algorithm *rc4 = thePublic->getRC4();
-    QString hash_value = this->toSHA1(messageContent);
+    QString hash_value = HashEngine.toSHA1(messageContent);
     QString encryptedContent= rc4->crypt(messageContent + "\r\n.,\r\n" + hash_value);
     qDebug() << encryptedContent;
     QString message("Mode: Public\r\n" + encryptedContent + "\r\n.\r\n");
@@ -101,7 +101,7 @@ void Connection::incomingMessage(){
             QString mesg = rc4->crypt(stringList.at(2));
             QStringList content = mesg.split("\r\n.,\r\n");
             if(!content.isEmpty()){
-                if(this->checkIntegrity(content.at(0), content.at(1)))
+                if(HashEngine.checkIntegrity(content.at(0), content.at(1)))
                     PublicWindow->addMessage(newString, content.at(0));
             }
         }
@@ -124,7 +124,7 @@ void Connection::incomingMessage(){
                     QString decrypted = destination->getRC4()->crypt(stringList.at(2));
                     QStringList content = decrypted.split("\r\n.,\r\n");
                     if(!content.isEmpty()){
-                        if(this->checkIntegrity(content.at(0), content.at(1)))
+                        if(HashEngine.checkIntegrity(content.at(0), content.at(1)))
                             destination->addMessage(content.at(0));
                     }
                 }
@@ -149,6 +149,8 @@ void Connection::incomingMessage(){
                 }
             }
             if(destination != nullptr && !destination->getInitiateStatus()){
+                //TODO: Rework this!!!
+                //This section is totally wrong
                 BIO* bufio;
                 RSA* clientKey;
                 QByteArray ba = this->rc4->crypt(stringList.at(2)).toLatin1();
@@ -163,7 +165,7 @@ void Connection::incomingMessage(){
                     char* hash_value = strstr(decrypted, "\r\n.,\r\n");
                     *hash_value = '\0';
                     hash_value = hash_value + 6;
-                    if(this->checkIntegrity(QString::fromUtf8(decrypted), QString::fromUtf8(hash_value))){
+                    if(HashEngine.checkIntegrity(QString::fromUtf8(decrypted), QString::fromUtf8(hash_value))){
                         destination->InitiateRC4(std::string(decrypted));
                         destination->setInitiateStatus(true);
                         QString random_message = QString::fromStdString(this->randomStringGen(200));
@@ -261,10 +263,13 @@ void Connection::newPrivateWindow(QObject *privateWindow){
 }
 
 void Connection::setServerKeyPair(const char *key, size_t key_len){
-    BIO* bufio;
-    bufio = BIO_new_mem_buf((void*)key, key_len);
-    PEM_read_bio_RSAPublicKey(bufio, &ServKey, 0, NULL);
-    BIO_free_all(bufio);
+//    BIO* bufio;
+//    bufio = BIO_new_mem_buf((void*)key, key_len);
+//    PEM_read_bio_RSAPublicKey(bufio, &ServKey, 0, NULL);
+//    BIO_free_all(bufio);
+    FILE* public_key = fopen("public.pem", "r");
+    PEM_read_RSAPublicKey(public_key, &ServKey, NULL, NULL);
+    fclose(public_key);
 }
 
 int Connection::InitRSA(){
@@ -321,57 +326,22 @@ void Connection::postPubKey(){
 
 void Connection::SetRC4Key(){
     std::string rc4key = randomStringGen(4);
-    qDebug() << QString::fromStdString(rc4key);
+//    qDebug() << QString::fromStdString(rc4key);
     RSA* serverKey = this->ServKey;
     this->rc4 = new RC4Algorithm(rc4key);
     //TODO: Send key to server
     QString key_hash = this->toSHA1(rc4key);
     QString raw_data = QString::fromStdString(rc4key) + "\r\n.,\r\n" + key_hash;
     QByteArray ba = raw_data.toLatin1();
-    char* toEncrypted = ba.data();
+    const char* toEncrypted = ba.data();
     char encrypt[4096];
-    int encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, serverKey, RSA_PKCS1_OAEP_PADDING);
+    int encrypt_len;
+//    qDebug() << raw_data;
+    printf("%s\n\n\n", toEncrypted);
+    encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, serverKey, RSA_PKCS1_OAEP_PADDING);
     QString message = "Mode: SetRC4Key\r\n";
     for(int i = 0; i < encrypt_len; i++)
         message += *(encrypt + i);
     message += "\r\n.\r\n";
     socket->write(message.toUtf8());
-}
-
-bool Connection::checkIntegrity(QString raw, QString hash){
-//    char raw_cstr[raw.length()];
-    QByteArray ba = raw.toLatin1();
-    char* temp = ba.data();
-    QByteArray ba2 = hash.toLatin1();
-    char* temp2 = ba2.data();
-    return this->checkIntegrity(raw.length(), (unsigned char*)temp, temp2);
-}
-
-bool Connection::checkIntegrity(size_t input_len, unsigned char *raw, char *hash_string){
-    char hash_out[SHA_DIGEST_LENGTH + 1];
-    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
-    SHA1(raw, input_len, (unsigned char*)hash_out);
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
-        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
-    }
-    return strcmp(hash_value, hash_string) == 0 ? true : false;
-}
-
-QString Connection::toSHA1(QString data){
-    QByteArray ba = data.toLatin1();
-    return this->toSHA1(ba.data(), data.length());
-}
-
-QString Connection::toSHA1(string data){
-    return this->toSHA1(data.c_str(), data.size());
-}
-
-QString Connection::toSHA1(const char *data, size_t data_len){
-    char hash_out[SHA_DIGEST_LENGTH + 1];
-    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
-    SHA1((unsigned char*)data, data_len, (unsigned char*)hash_out);
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
-        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
-    }
-    return QString::fromUtf8(hash_value);
 }

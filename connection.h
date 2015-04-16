@@ -7,6 +7,7 @@
 #include <string>
 #include <openssl/rsa.h>
 #include "rc4algorithm.h"
+#include "sha1hash.h"
 
 class Connection : public QObject
 {
@@ -20,6 +21,7 @@ public:
 
 private:
     QTimer timer;
+    SHA1Hash HashEngine;
     QTcpSocket* socket;
     bool isApplicationRunning;
     QString username;
@@ -35,11 +37,6 @@ private:
     std::string randomStringGen(size_t LEN);
     void SetRC4Key();
     void postPubKey();
-    bool checkIntegrity(QString raw, QString hash);
-    bool checkIntegrity(size_t input_len, unsigned char* raw, char* hash_string);
-    QString toSHA1(QString data);
-    QString toSHA1(std::string data);
-    QString toSHA1(const char* data, size_t data_len);
 
 signals:
 
