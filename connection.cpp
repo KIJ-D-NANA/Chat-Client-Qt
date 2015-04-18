@@ -118,7 +118,7 @@ void Connection::incomingMessage(){
             }
             //Send message to the window
             if(destination != nullptr){
-                if(destination->getRC4() != nullptr){
+                if(destination->getInitiateStatus()){
                     QString decrypted = destination->getRC4()->crypt(stringList.at(2));
                     QStringList content = decrypted.split("\r\n.,\r\n");
                     if(!content.isEmpty()){
@@ -163,6 +163,10 @@ void Connection::incomingMessage(){
                             QString message("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + send_content + "\r\n.\r\n");
                             destination->setInitiateStatus(true);
                             socket->write(message.toUtf8());
+                        }
+                        else{
+                            PublicWindow->getPrivateChatList()->removeOne(destination);
+                            delete destination;
                         }
                     }
                     //if this is the initiator
@@ -217,8 +221,11 @@ void Connection::incomingMessage(){
                 socket->write(message.toUtf8());
             }
         }
-
     }
+}
+void Connection::getPubKey(QString name){
+    QString message("Mode: GetPubKey\r\nUser: " + name + "\r\n.\r\n");
+    socket->write(message.toUtf8());
 }
 
 void Connection::outgoingPrivateMessage(QString receiver, QString messageContent, RC4Algorithm *ClientRC4Key){
@@ -242,7 +249,8 @@ void Connection::newPrivateWindow(QObject *privateWindow){
     socket->write(message.toUtf8());
 }
 
-void Connection::setServerKeyPair(const char *key, size_t key_len){
+
+void Connection::setServerKeyPair(const char *key, int key_len){
     ServKey.setPubKey(key, key_len);
 }
 

@@ -10,6 +10,8 @@
 #include "sha1hash.h"
 #include "rsacrpto.h"
 
+#include "rsaalgorithm.h"
+
 class Connection : public QObject
 {
     Q_OBJECT
@@ -17,8 +19,9 @@ public:
     explicit Connection(int refreshRate_msec = 1000, QObject *parent = 0);
     ~Connection();
     bool connectToHost(QString IP, quint16 Port, QString Username);
-    void setServerKeyPair(const char* key, size_t key_len);
+    void setServerKeyPair(const char* key, int key_len);
 
+    void getPubKey(QString name);
 private:
     QTimer timer;
     SHA1Hash HashEngine;

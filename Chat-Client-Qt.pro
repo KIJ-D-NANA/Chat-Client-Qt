@@ -22,7 +22,8 @@ SOURCES += main.cpp\
     rc4algorithm.cpp \
     sha1hash.cpp \
     rsacrpto.cpp \
-    base64engine.cpp
+    base64engine.cpp \
+    rsaalgorithm.cpp
 
 HEADERS  += connectwindow.h \
     publicchat.h \
@@ -32,7 +33,8 @@ HEADERS  += connectwindow.h \
     rc4algorithm.h \
     sha1hash.h \
     rsacrpto.h \
-    base64engine.h
+    base64engine.h \
+    rsaalgorithm.h
 
 FORMS    += connectwindow.ui \
     publicchat.ui \

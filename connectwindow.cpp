@@ -14,7 +14,6 @@ ConnectWindow::ConnectWindow(QWidget *parent) :
     ui->port_line->setPlaceholderText("Port");
     ui->username_line->setPlaceholderText("Username");
     ui->address_line->setFocus();
-
     connect(ui->username_line, SIGNAL(returnPressed()), this, SLOT(ConnectToHost()));
     connect(ui->connectButton, SIGNAL(clicked()), this, SLOT(ConnectToHost()));
     ui->port_line->setValidator(new QIntValidator(0, 65535));
@@ -40,7 +39,7 @@ void ConnectWindow::ConnectToHost(){
         PublicChat* mainWindow = new PublicChat();
         mainWindow->setUsername(name);
         Connection* theConnection = new Connection(1000, mainWindow);
-        theConnection->setServerKeyPair(this->CA, strlen(this->CA));
+        theConnection->setServerKeyPair(CA, -1);
         if(!theConnection->connectToHost(IP, port, name)){
             delete mainWindow;
 //            delete theConnection;
