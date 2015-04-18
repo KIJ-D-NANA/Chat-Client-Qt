@@ -20,6 +20,9 @@ SOURCES += main.cpp\
     connection.cpp \
     chattextbox.cpp \
     rc4algorithm.cpp \
+    sha1hash.cpp \
+    rsacrpto.cpp \
+    base64engine.cpp \
     rsaalgorithm.cpp
 
 HEADERS  += connectwindow.h \
@@ -28,6 +31,9 @@ HEADERS  += connectwindow.h \
     connection.h \
     chattextbox.h \
     rc4algorithm.h \
+    sha1hash.h \
+    rsacrpto.h \
+    base64engine.h \
     rsaalgorithm.h
 
 FORMS    += connectwindow.ui \

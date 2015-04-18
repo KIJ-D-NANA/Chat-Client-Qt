@@ -8,13 +8,12 @@
 #include <vector>
 #include <random>
 #include <algorithm>
-#include <openssl/pem.h>
-#include <openssl/err.h>
 #include <stdio.h>
 
 Connection::Connection(int refreshRate_msec, QObject *parent) : QObject(parent)
 {
     timer.setInterval(refreshRate_msec);
+    ClientKey.InitKey(2048);
     connect(&timer, SIGNAL(timeout()), this, SLOT(checkUserList()));
     isApplicationRunning = false;
 }
@@ -37,21 +36,11 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         isApplicationRunning = true;
         this->SetRC4Key();
         this->postPubKey();
-
+        qDebug() << "Stop Here!!";
         //TODO: Encrypt the username
-        QString sha_name = this->toSHA1(Username);
+        QString sha_name = HashEngine.toSHA1(Username);
         QString encrypted = rc4->crypt(Username + "\r\n.,\r\n" + sha_name);
         socket->write("Mode: Username\r\n" + encrypted.toUtf8() + "\r\n.\r\n");
-//=======
-//        rsa = new RSAAlgorithm();
-//        rsa->setServerKeyPair(CA,sizeof(CA));
-//        socket->write("Mode: Username\r\n" + Username.toUtf8() + "\r\n.\r\n");
-//        // Sending Public key to the server
-
-//        QString setPub("Mode: SetPubKey\r\n" + QString::fromUtf8(rsa->getPublicKey()) + "\r\n.\r\n");
-//        socket->write(setPub.toUtf8());
-
-//>>>>>>> fb9fdcb363da591b3fae71982ede2bf1bace005e
 
         timer.start();
         return true;
@@ -74,7 +63,7 @@ void Connection::disconnected(){
     }
 }
 
-void Connection::newSessionHandler(QString receiver, QObject *sender){
+void Connection::newSessionHandler(QObject *sender){
     //TODO: Initiate new session to that user
     PrivateChat* privateChat = (PrivateChat*)sender;
     privateChat->InitiateRC4(randomStringGen(4));
@@ -85,7 +74,7 @@ void Connection::newSessionHandler(QString receiver, QObject *sender){
 void Connection::outgoingPublicMessage(QString messageContent){
     PublicChat* thePublic = (PublicChat*)parent();
     RC4Algorithm *rc4 = thePublic->getRC4();
-    QString hash_value = this->toSHA1(messageContent);
+    QString hash_value = HashEngine.toSHA1(messageContent);
     QString encryptedContent= rc4->crypt(messageContent + "\r\n.,\r\n" + hash_value);
     qDebug() << encryptedContent;
     QString message("Mode: Public\r\n" + encryptedContent + "\r\n.\r\n");
@@ -110,7 +99,7 @@ void Connection::incomingMessage(){
             QString mesg = rc4->crypt(stringList.at(2));
             QStringList content = mesg.split("\r\n.,\r\n");
             if(!content.isEmpty()){
-                if(this->checkIntegrity(content.at(0), content.at(1)))
+                if(HashEngine.checkIntegrity(content.at(0), content.at(1)))
                     PublicWindow->addMessage(newString, content.at(0));
             }
         }
@@ -129,11 +118,11 @@ void Connection::incomingMessage(){
             }
             //Send message to the window
             if(destination != nullptr){
-                if(destination->getRC4() != nullptr){
+                if(destination->getInitiateStatus()){
                     QString decrypted = destination->getRC4()->crypt(stringList.at(2));
                     QStringList content = decrypted.split("\r\n.,\r\n");
                     if(!content.isEmpty()){
-                        if(this->checkIntegrity(content.at(0), content.at(1)))
+                        if(HashEngine.checkIntegrity(content.at(0), content.at(1)))
                             destination->addMessage(content.at(0));
                     }
                 }
@@ -158,48 +147,39 @@ void Connection::incomingMessage(){
                 }
             }
             if(destination != nullptr && !destination->getInitiateStatus()){
-                BIO* bufio;
-                RSA* clientKey;
-                QByteArray ba = this->rc4->crypt(stringList.at(2)).toLatin1();
-                bufio = BIO_new_mem_buf((void*)ba.data(), stringList.at(2).length());
-                PEM_read_bio_RSAPublicKey(bufio, &clientKey, NULL, NULL);
-                BIO_free_all(bufio);
-                if(destination->cryptedKey != "" && !destination->initiator){
-                    QByteArray ba2 = destination->cryptedKey.toLatin1();
-                    char decrypted[4096];
-                    int decrypt_len = RSA_public_decrypt(destination->cryptedKey.length(), (unsigned char*)ba2.data(), (unsigned char*)decrypted, clientKey, RSA_PKCS1_PADDING);
-                    decrypted[decrypt_len] = '\0';
-                    char* hash_value = strstr(decrypted, "\r\n.,\r\n");
-                    *hash_value = '\0';
-                    hash_value = hash_value + 6;
-                    if(this->checkIntegrity(QString::fromUtf8(decrypted), QString::fromUtf8(hash_value))){
-                        destination->InitiateRC4(std::string(decrypted));
-                        destination->setInitiateStatus(true);
-                        QString random_message = QString::fromStdString(this->randomStringGen(200));
-                        QString random_hash = this->toSHA1(random_message);
-                        QString content = destination->getRC4()->crypt(random_message + "\r\n.,\r\n" + random_hash);
-                        QString message("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + content + "\r\n.\r\n");
+                //Have been reworked
+                QStringList content = rc4->crypt(stringList.at(2)).split("\r\n.,\r\n");
+                if(!content.isEmpty() && HashEngine.checkIntegrity(content.at(0), content.at(1))){
+                    RSACrpto otherKey;
+                    otherKey.setPubKey(content.at(0));
+                    //If this is the receiver
+                    if(destination->cryptedKey != "" && !destination->initiator){
+                        QStringList keyMessage = otherKey.public_decrypt(destination->cryptedKey).split("\r\n.,\r\n");
+                        if(!keyMessage.isEmpty() && HashEngine.checkIntegrity(keyMessage.at(0), keyMessage.at(1))){
+                            destination->InitiateRC4(keyMessage.at(0).toStdString());
+                            std::string random_message = this->randomStringGen(200);
+                            QString random_hash = HashEngine.toSHA1(random_message);
+                            QString send_content = rc4->crypt(QString::fromStdString(random_message) + "\r\n.,\r\n" + random_hash);
+                            QString message("Mode: AccPriv\r\nUser: " + destination->getReceiver() + "\r\n" + send_content + "\r\n.\r\n");
+                            destination->setInitiateStatus(true);
+                            socket->write(message.toUtf8());
+                        }
+                        else{
+                            PublicWindow->getPrivateChatList()->removeOne(destination);
+                            delete destination;
+                        }
+                    }
+                    //if this is the initiator
+                    else{
+                        std::string client_rc4_key = randomStringGen(20);
+                        destination->InitiateRC4(client_rc4_key);
+                        QString key_hash = HashEngine.toSHA1(client_rc4_key);
+                        QString layer1_encrypt = ClientKey.private_encrypt(QString::fromStdString(client_rc4_key) + "\r\n.,\r\n" + key_hash);
+                        QString layer2_encrypt = otherKey.public_encrypt(layer1_encrypt);
+                        QString message("Mode: InitPriv\r\nUser: " + destination->getReceiver() + "\r\n" + layer2_encrypt + "\r\n.\r\n");
                         socket->write(message.toUtf8());
                     }
-                    else{
-                        QList<PrivateChat*>* PrivateList = PublicWindow->getPrivateChatList();
-                        PrivateList->removeOne(destination);
-                        delete destination;
-                    }
                 }
-                else{
-                    string clientrc4 = this->randomStringGen(4);
-                    QString hash_value = this->toSHA1(clientrc4);
-                    QString To_encrypt = QString::fromStdString(clientrc4) + "\r\n.,\r\n" + hash_value;
-                    QByteArray ba2 = To_encrypt.toLatin1();
-                    char encrypt[4096];
-                    int encrypt_len = RSA_private_encrypt(To_encrypt.length(), (unsigned char*)ba2.data(), (unsigned char*)encrypt, keypair, RSA_PKCS1_PADDING);
-                    char encrypt2[4096];
-                    int encrypt2_len = RSA_public_encrypt(encrypt_len, (unsigned char*)encrypt, (unsigned char*)encrypt2, clientKey, RSA_PKCS1_OAEP_PADDING);
-                    QString message("Mode: InitPriv\r\nUser: " + destination->getReceiver() + "\r\n" + QString::fromUtf8(encrypt2, encrypt2_len) + "\r\n.\r\n");
-                    socket->write(message.toUtf8());
-                }
-                RSA_free(clientKey);
             }
         }
         else if(stringList.at(0) == "Mode: AccPriv"){
@@ -216,7 +196,7 @@ void Connection::incomingMessage(){
                 QString decrypted = destination->getRC4()->crypt(stringList.at(2));
                 QStringList thePair = decrypted.split("\r\n.,\r\n");
                 if(!thePair.empty()){
-                    if(this->checkIntegrity(thePair.at(0), thePair.at(1))){
+                    if(HashEngine.checkIntegrity(thePair.at(0), thePair.at(1))){
                         destination->setInitiateStatus(true);
                     }
                 }
@@ -234,10 +214,8 @@ void Connection::incomingMessage(){
             }
             if(destination == nullptr){
                 destination = PublicWindow->addPrivateChat(username);
-                QByteArray ba = stringList.at(2).toLatin1();
-                char decrypt[4096];
-                int decrypt_len = RSA_private_decrypt(stringList.at(2).length(), (unsigned char*)ba.data(), (unsigned char*)decrypt, keypair, RSA_PKCS1_OAEP_PADDING);
-                destination->cryptedKey = QString::fromUtf8(decrypt, decrypt_len);
+                QString decrypt = ClientKey.private_decrypt(stringList.at(2));
+                destination->cryptedKey = decrypt;
                 destination->initiator = false;
                 QString message("Mode: GetPubKey\r\nUser: " + username + "\r\n.\r\n");
                 socket->write(message.toUtf8());
@@ -251,7 +229,7 @@ void Connection::getPubKey(QString name){
 }
 
 void Connection::outgoingPrivateMessage(QString receiver, QString messageContent, RC4Algorithm *ClientRC4Key){
-    QString message_hash = this->toSHA1(messageContent);
+    QString message_hash = HashEngine.toSHA1(messageContent);
     QString content = ClientRC4Key->crypt(messageContent + "\r\n.,\r\n" + message_hash);
     QString message("Mode: Private\r\nUser: " + receiver + "\r\n" + content + "\r\n.\r\n");
     socket->write(message.toUtf8());
@@ -267,37 +245,16 @@ void Connection::newPrivateWindow(QObject *privateWindow){
     PrivateChat* privateChat = (PrivateChat*)privateWindow;
     connect(privateChat, SIGNAL(sendMessage(QString,QString,RC4Algorithm*)), this, SLOT(outgoingPrivateMessage(QString,QString,RC4Algorithm*)));
     // TODO : Distribute key with another client
-//    privateChat->InitiateRC4(randomStringGen(1024 / 8 - 40));
     QString message("Mode: GetPubKey\r\nUser: " + privateChat->getReceiver() + "\r\n.\r\n");
     socket->write(message.toUtf8());
 }
 
 
-void Connection::setServerKeyPair(const char *key, size_t key_len){
-    BIO* bufio;
-    bufio = BIO_new_mem_buf((void*)key, key_len);
-    PEM_read_bio_RSAPublicKey(bufio, &ServKey, 0, NULL);
-    BIO_free_all(bufio);
-}
-
-int Connection::InitRSA(){
-    BIGNUM *bne = BN_new();
-    BN_set_word(bne, RSA_F4);
-    keypair = RSA_new();
-    int r = RSA_generate_key_ex(keypair, 2048, bne, NULL);
-    BN_free(bne);
-    return r;
+void Connection::setServerKeyPair(const char *key, int key_len){
+    ServKey.setPubKey(key, key_len);
 }
 
 std::string Connection::randomStringGen(size_t LEN){
-//    std::random_device rd;
-//    std::default_random_engine rng(rd());
-//    std::uniform_int_distribution<> dist(0,sizeof(alphabet)/sizeof(*alphabet)-2);
-
-//    std::string strs;
-//    strs.reserve(LEN);
-//    std::generate_n(strs.begin(), LEN, [&](){return alphabet[dist(rng)];});
-//    return strs;
     int length = LEN;
     auto randchar = []() -> char
     {
@@ -315,76 +272,19 @@ std::string Connection::randomStringGen(size_t LEN){
 
 void Connection::postPubKey(){
     // Sending Public key to the server
-    size_t pub_len;
-    char* pub_key;
-    BIO* pub = BIO_new(BIO_s_mem());
-    PEM_write_bio_RSAPublicKey(pub, keypair);
-    pub_len = BIO_pending(pub);
-    pub_key = (char*) malloc(pub_len + 1);
-    BIO_read(pub, pub_key, pub_len);
-    pub_key[pub_len] = '\0';
-    QString sha_value = this->toSHA1(pub_key, pub_len);
-    QString content = this->rc4->crypt(QString::fromUtf8(pub_key, pub_len) + "\r\n.,\r\n" + sha_value);
+    QString public_key = ClientKey.getPubKey();
+    QString public_hash = HashEngine.toSHA1(public_key);
+    QString content = rc4->crypt(public_key + "\r\n.,\r\n" + public_hash);
     QString message("Mode: SetPubKey\r\n" + content + "\r\n.\r\n");
     socket->write(message.toUtf8());
-    free(pub_key);
-    BIO_free_all(pub);
     //
 }
 
 void Connection::SetRC4Key(){
-    std::string rc4key = randomStringGen(4);
-    qDebug() << QString::fromStdString(rc4key);
-    RSA* serverKey = this->ServKey;
+    std::string rc4key = randomStringGen(20);
     this->rc4 = new RC4Algorithm(rc4key);
-    //TODO: Send key to server
-    QString key_hash = this->toSHA1(rc4key);
-    QString raw_data = QString::fromStdString(rc4key) + "\r\n.,\r\n" + key_hash;
-    QByteArray ba = raw_data.toLatin1();
-    char* toEncrypted = ba.data();
-    char encrypt[4096];
-    int encrypt_len = RSA_public_encrypt(raw_data.length(), (unsigned char*)toEncrypted, (unsigned char*)encrypt, serverKey, RSA_PKCS1_OAEP_PADDING);
-    QString message = "Mode: SetRC4Key\r\n";
-    for(int i = 0; i < encrypt_len; i++)
-        message += *(encrypt + i);
-    message += "\r\n.\r\n";
+    QString key_hash = HashEngine.toSHA1(rc4key);
+    QString content = ServKey.public_encrypt(QString::fromStdString(rc4key) + "\r\n.,\r\n" + key_hash);
+    QString message("Mode: SetRC4Key\r\n" + content + "\r\n.\r\n");
     socket->write(message.toUtf8());
-}
-
-bool Connection::checkIntegrity(QString raw, QString hash){
-//    char raw_cstr[raw.length()];
-    QByteArray ba = raw.toLatin1();
-    char* temp = ba.data();
-    QByteArray ba2 = hash.toLatin1();
-    char* temp2 = ba2.data();
-    return this->checkIntegrity(raw.length(), (unsigned char*)temp, temp2);
-}
-
-bool Connection::checkIntegrity(size_t input_len, unsigned char *raw, char *hash_string){
-    char hash_out[SHA_DIGEST_LENGTH + 1];
-    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
-    SHA1(raw, input_len, (unsigned char*)hash_out);
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
-        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
-    }
-    return strcmp(hash_value, hash_string) == 0 ? true : false;
-}
-
-QString Connection::toSHA1(QString data){
-    QByteArray ba = data.toLatin1();
-    return this->toSHA1(ba.data(), data.length());
-}
-
-QString Connection::toSHA1(string data){
-    return this->toSHA1(data.c_str(), data.size());
-}
-
-QString Connection::toSHA1(const char *data, size_t data_len){
-    char hash_out[SHA_DIGEST_LENGTH + 1];
-    char hash_value[SHA_DIGEST_LENGTH * 2 + 1];
-    SHA1((unsigned char*)data, data_len, (unsigned char*)hash_out);
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++){
-        sprintf(&hash_value[i * 2], "%02x", (unsigned int)hash_out[i]);
-    }
-    return QString::fromUtf8(hash_value);
 }
