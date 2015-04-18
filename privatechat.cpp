@@ -118,5 +118,5 @@ void PrivateChat::expireSession(){
 void PrivateChat::renewSession(){
     this->initiator = true;
     this->cryptedKey = "";
-    emit newSession(this->messageReceiver, (QObject*)this);
+    emit newSession((QObject*)this);
 }
