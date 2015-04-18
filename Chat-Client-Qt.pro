@@ -19,14 +19,20 @@ SOURCES += main.cpp\
     privatechat.cpp \
     connection.cpp \
     chattextbox.cpp \
-    rc4algorithm.cpp
+    rc4algorithm.cpp \
+    sha1hash.cpp \
+    rsacrpto.cpp \
+    base64engine.cpp
 
 HEADERS  += connectwindow.h \
     publicchat.h \
     privatechat.h \
     connection.h \
     chattextbox.h \
-    rc4algorithm.h
+    rc4algorithm.h \
+    sha1hash.h \
+    rsacrpto.h \
+    base64engine.h
 
 FORMS    += connectwindow.ui \
     publicchat.ui \

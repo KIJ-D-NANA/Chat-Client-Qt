@@ -31,7 +31,7 @@ public:
 signals:
     void sendMessage(QString messageReceiver, QString messageContent, RC4Algorithm* ClientRC4Key);
     void windowClosed(QObject* window);
-    void newSession(QString messageReceiver, QObject* sender);
+    void newSession(QObject* sender);
 
 public slots:
     void checkMessageText();
