@@ -46,3 +46,13 @@ QString RC4Algorithm::crypt(QString beforeText)
     return afterText;
 }
 
+QString RC4Algorithm::crypt(char *beforetext, int length){
+    iter1 = iter2 = 0;
+    QString afterText;
+    unsigned char tempS[256];
+    copy(S, S + sizeof(S), tempS);
+    for(int i = 0; i < length; i++){
+        afterText += genKey(tempS) ^ beforetext[i];
+    }
+    return afterText;
+}

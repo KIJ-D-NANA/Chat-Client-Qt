@@ -3,16 +3,6 @@
 #include <openssl/evp.h>
 #include <openssl/buffer.h>
 
-Base64Engine::Base64Engine()
-{
-
-}
-
-Base64Engine::~Base64Engine()
-{
-
-}
-
 int Base64Engine::encode(const unsigned char *buffer, size_t length, char **base64_text){
     BIO *bio, *b64;
     BUF_MEM *bufferPtr;
@@ -37,19 +27,19 @@ int Base64Engine::encode(const unsigned char *buffer, size_t length, char **base
 
 QString Base64Engine::encode(const char *buffer, size_t length){
     char* encoded;
-    int encode_length = this->encode((unsigned char*)buffer, length, &encoded);
+    int encode_length = Base64Engine::encode((unsigned char*)buffer, length, &encoded);
     QString message = QString::fromUtf8(encoded, encode_length);
     free(encoded);
     return message;
 }
 
 QString Base64Engine::encode(std::string plain_text){
-    return this->encode(plain_text.c_str(), plain_text.length());
+    return Base64Engine::encode(plain_text.c_str(), plain_text.length());
 }
 
 QString Base64Engine::encode(QString plain_text){
     QByteArray ba = plain_text.toLatin1();
-    return this->encode(ba.data(), plain_text.length());
+    return Base64Engine::encode(ba.data(), plain_text.length());
 }
 
 size_t Base64Engine::calcDecodeLength(const char *b64input){
@@ -64,19 +54,23 @@ size_t Base64Engine::calcDecodeLength(const char *b64input){
     return (len*3)/4 - padding;
 }
 
-int Base64Engine::decode(char *b64message, unsigned char **buffer, size_t *length){
+int Base64Engine::decode(const char *b64message, unsigned char **buffer, size_t length){
     BIO *bio, *b64;
 
     int decodeLen = calcDecodeLength(b64message);
     *buffer = (uint8_t*)malloc(decodeLen);
 
-    bio = BIO_new_mem_buf(b64message, -1);
+    char* copy_message = (char*)malloc(length);
+    memcpy(copy_message, b64message, length);
+
+    bio = BIO_new_mem_buf(copy_message, length);
     b64 = BIO_new(BIO_f_base64());
     bio = BIO_push(b64, bio);
 
     BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
-    *length = BIO_read(bio, *buffer, strlen(b64message));
+    int result = BIO_read(bio, *buffer, strlen(b64message));
     BIO_free_all(bio);
+    free(copy_message);
 
-    return (0); //success
+    return result; //success
 }
