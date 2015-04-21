@@ -37,7 +37,6 @@ bool Connection::connectToHost(QString IP, quint16 Port, QString Username){
         isApplicationRunning = true;
         this->SetRC4Key();
         this->postPubKey();
-        qDebug() << "Stop Here!!";
         //TODO: Encrypt the username
         QString sha_name = HashEngine.toSHA1(Username);
         QString encrypted = rc4->crypt(Username + "\r\n.,\r\n" + sha_name);
@@ -152,10 +151,17 @@ void Connection::incomingMessage(){
             }
             if(destination != nullptr && !destination->getInitiateStatus()){
                 //Have been reworked
-                QStringList content = rc4->crypt(stringList.at(2)).split("\r\n.,\r\n");
-                if(!content.isEmpty() && HashEngine.checkIntegrity(content.at(0), content.at(1))){
+                char* public_decode;
+                QByteArray public_bytearray = stringList.at(2).toLatin1();
+                int public_decode_len = Base64Engine::decode(public_bytearray.data(), (unsigned char**)&public_decode, stringList.at(2).length());
+                QString content_string = rc4->crypt(public_decode, public_decode_len);
+                QStringList content = content_string.split("\r\n.,\r\n");
+                free(public_decode);
+                QString certificate = content.at(0).mid(0, content.at(0).length() - 1);
+                bool theIntegrity = HashEngine.checkIntegrity(certificate, content.at(1));
+                if(!content.isEmpty() && theIntegrity){
                     RSACrpto otherKey;
-                    otherKey.setPubKey(content.at(0));
+                    otherKey.setPubKey(certificate);
                     //If this is the receiver
                     if(destination->cryptedKey != "" && !destination->initiator){
                         char* decoded;
@@ -196,6 +202,7 @@ void Connection::incomingMessage(){
                         free(layer2);
 
                         QString message("Mode: InitPriv\r\nUser: " + destination->getReceiver() + "\r\n" + layer2_encrypt + "\r\n.\r\n");
+                        qDebug() << message;
                         socket->write(message.toUtf8());
                         socket->flush();
                     }
@@ -311,7 +318,6 @@ void Connection::postPubKey(){
     QString message("Mode: SetPubKey\r\n" + encoded + "\r\n.\r\n");
     socket->write(message.toUtf8());
     socket->flush();
-    qDebug() << "Public key sent";
     //
 }
 
@@ -322,8 +328,6 @@ void Connection::SetRC4Key(){
     char* encrypted;
     int encrypted_len = ServKey.public_encrypt(QString::fromStdString(rc4key) + "\r\n.,\r\n" + key_hash, &encrypted);
     QString content = Base64Engine::encode(encrypted, encrypted_len);
-    qDebug() << QString::fromStdString(rc4key);
-    qDebug() << key_hash;
     free(encrypted);
 
     QString message("Mode: SetRC4Key\r\n" + content + "\r\n.\r\n");

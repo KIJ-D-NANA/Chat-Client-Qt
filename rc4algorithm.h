@@ -11,6 +11,7 @@ public:
     void initPermutation();
     unsigned char genKey(unsigned char* tempS);
     QString crypt(QString beforetext);
+    QString crypt(char* beforetext, int length);
 private:
     unsigned char S[256];
     unsigned char T[256];
