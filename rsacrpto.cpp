@@ -5,6 +5,7 @@
 #include <openssl/evp.h>
 #include <openssl/ssl.h>
 #include <string.h>
+#include <QDebug>
 
 RSACrpto::RSACrpto()
 {
@@ -35,7 +36,7 @@ RSA* RSACrpto::InitKey(size_t key_len){
     BIO* pub = BIO_new(BIO_s_mem());
 
     PEM_write_bio_RSAPrivateKey(pri, keypair, NULL, NULL, 0 ,NULL, NULL);
-    PEM_write_bio_RSAPublicKey(pub, keypair);
+    PEM_write_bio_RSA_PUBKEY(pub, keypair);
 
     pri_len = BIO_pending(pri);
     pub_len = BIO_pending(pub);
@@ -62,12 +63,22 @@ RSA* RSACrpto::CreateRSA(bool isPublic){
         if(keybio == NULL)
             return 0;
         keypair = PEM_read_bio_RSA_PUBKEY(keybio, &keypair, NULL, NULL);
+        if(keypair == NULL){
+            keypair = PEM_read_bio_RSAPublicKey(keybio, &keypair, NULL, NULL);
+        }
     }
     else{
         keybio = BIO_new_mem_buf(this->private_key, -1);
         if(keybio == NULL)
             return 0;
         keypair = PEM_read_bio_RSAPrivateKey(keybio, &keypair, NULL, NULL);
+    }
+    if(keypair == NULL){
+        char* err = (char*)malloc(130);
+        ERR_load_crypto_strings();
+        ERR_error_string(ERR_get_error(), err);
+        printf("ERROR: %s\n", err);
+        free(err);
     }
     BIO_free(keybio);
     return keypair;
@@ -89,6 +100,7 @@ bool RSACrpto::setPubKey(const char *public_key, int public_len){
 
     if(this->public_key){
         memcpy(this->public_key, public_key, length);
+        this->public_key[length] = '\0';
         this->CreateRSA(true);
         return true;
     }
@@ -116,11 +128,11 @@ bool RSACrpto::setPubKey(FILE *public_key){
 
 bool RSACrpto::setPubKey(QString public_key){
     QByteArray ba = public_key.toLatin1();
-    return this->setPubKey(ba.data());
+    return this->setPubKey(ba.data(), public_key.length());
 }
 
 bool RSACrpto::setPubKey(std::string public_key){
-    return this->setPubKey(public_key.c_str());
+    return this->setPubKey(public_key.c_str(), public_key.length());
 }
 
 bool RSACrpto::setPrivateKey(const char *private_key, int private_len){
@@ -179,6 +191,9 @@ int RSACrpto::public_encrypt(const char *data, int data_len, char** output, int 
         data_size = strlen(data);
     else
         data_size = data_len;
+    if(this->keypair == NULL)
+        keypair = this->CreateRSA(true);
+    qDebug() << QString::fromUtf8(public_key);
     char *encrypted = (char*)malloc(RSA_size(keypair) + 1);
     int encrypt_len = RSA_public_encrypt(data_size, (unsigned char*)data, (unsigned char*)encrypted, keypair, padding);
     *output = encrypted;
@@ -191,6 +206,8 @@ int RSACrpto::public_decrypt(const char *data, int data_len, char** output, int 
         data_size = strlen(data);
     else
         data_size = data_len;
+    if(this->keypair == NULL)
+        keypair = this->CreateRSA(true);
     char *decrypted = (char*)malloc(RSA_size(keypair) + 1);
     int decrypt_len = RSA_public_decrypt(data_size, (unsigned char*)data, (unsigned char*)decrypted, keypair, padding);
     *output = decrypted;
@@ -203,6 +220,8 @@ int RSACrpto::private_encrypt(const char *data, int data_len, char** output, int
         data_size = strlen(data);
     else
         data_size = data_len;
+    if(this->keypair == NULL)
+        keypair = this->CreateRSA(false);
     char *encrypted = (char*)malloc(RSA_size(keypair) + 1);
     int encrypt_len = RSA_private_encrypt(data_size, (unsigned char*)data, (unsigned char*)encrypted, keypair, padding);
     *output = encrypted;
@@ -215,6 +234,8 @@ int RSACrpto::private_decrypt(const char *data, int data_len, char** output, int
         data_size = strlen(data);
     else
         data_size = data_len;
+    if(this->keypair == NULL)
+        keypair = this->CreateRSA(false);
     char *decrypted = (char*)malloc(RSA_size(keypair) + 1);
     int decrypt_len = RSA_private_decrypt(data_size, (unsigned char*)data, (unsigned char*)decrypted, keypair, padding);
     *output = decrypted;

@@ -90,13 +90,23 @@ void PublicChat::addMessage(QString messageContent){
 }
 
 void PublicChat::createNewPrivateWindow(QListWidgetItem *item){
-    PrivateChat* newPrivateChat = new PrivateChat(this->username, 5000, this);
-    newPrivateChat->initiator = true;
-    newPrivateChat->setReceiver(item->text());
-    newPrivateChat->show();
-    privateList.append(newPrivateChat);
-    connect(newPrivateChat, SIGNAL(windowClosed(QObject*)), this, SLOT(PrivateWindowClosed(QObject*)));
-    emit newPrivateWindow((QObject*)newPrivateChat);
+    PrivateChat* destination = nullptr;
+    for(PrivateChat* now : this->privateList){
+        if(now->getReceiver() == item->text()){
+            destination = now;
+            break;
+        }
+    }
+    if(destination == nullptr){
+        PrivateChat* newPrivateChat = new PrivateChat(this->username, 5000, this);
+        newPrivateChat->initiator = true;
+        newPrivateChat->setReceiver(item->text());
+        privateList.append(newPrivateChat);
+        connect(newPrivateChat, SIGNAL(windowClosed(QObject*)), this, SLOT(PrivateWindowClosed(QObject*)));
+        emit newPrivateWindow((QObject*)newPrivateChat);
+        destination = newPrivateChat;
+    }
+    destination->show();
 }
 
 QStringList *PublicChat::getUserList(){

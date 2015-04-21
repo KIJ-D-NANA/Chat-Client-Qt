@@ -13,8 +13,9 @@ SHA1Hash::~SHA1Hash()
 
 bool SHA1Hash::checkIntegrity(QString raw, QString hash){
 //    char raw_cstr[raw.length()];
-    QString raw_hash = this->toSHA1(raw);
-    return raw_hash == hash;
+    QByteArray ba = raw.toLatin1();
+    QByteArray ba2 = hash.toLatin1();
+    return this->checkIntegrity(raw.length(), (unsigned char*)ba.data(), ba2.data());
 }
 
 bool SHA1Hash::checkIntegrity(size_t input_len, unsigned char *raw, const char *hash_string){
