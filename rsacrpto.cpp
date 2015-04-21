@@ -173,84 +173,88 @@ bool RSACrpto::setPrivateKey(std::string private_key){
     return this->setPrivateKey(private_key.c_str());
 }
 
-QString RSACrpto::public_encrypt(const char *data, int data_len, int padding){
+int RSACrpto::public_encrypt(const char *data, int data_len, char** output, int padding){
     int data_size;
     if(data_len == -1)
         data_size = strlen(data);
     else
         data_size = data_len;
-    char encrypted[4096];
+    char *encrypted = (char*)malloc(RSA_size(keypair) + 1);
     int encrypt_len = RSA_public_encrypt(data_size, (unsigned char*)data, (unsigned char*)encrypted, keypair, padding);
-    return QString::fromUtf8(encrypted, encrypt_len);
+    *output = encrypted;
+    return encrypt_len;
 }
 
-QString RSACrpto::public_decrypt(const char *data, int data_len, int padding){
+int RSACrpto::public_decrypt(const char *data, int data_len, char** output, int padding){
     int data_size;
     if(data_len == -1)
         data_size = strlen(data);
     else
         data_size = data_len;
-    char decrypted[4096];
+    char *decrypted = (char*)malloc(RSA_size(keypair) + 1);
     int decrypt_len = RSA_public_decrypt(data_size, (unsigned char*)data, (unsigned char*)decrypted, keypair, padding);
-    return QString::fromUtf8(decrypted, decrypt_len);
+    *output = decrypted;
+    return decrypt_len;
 }
 
-QString RSACrpto::private_encrypt(const char *data, int data_len, int padding){
+int RSACrpto::private_encrypt(const char *data, int data_len, char** output, int padding){
     int data_size;
     if(data_len == -1)
         data_size = strlen(data);
     else
         data_size = data_len;
-    char encrypted[4096];
+    char *encrypted = (char*)malloc(RSA_size(keypair) + 1);
     int encrypt_len = RSA_private_encrypt(data_size, (unsigned char*)data, (unsigned char*)encrypted, keypair, padding);
-    return QString::fromUtf8(encrypted, encrypt_len);
+    *output = encrypted;
+    return encrypt_len;
 }
 
-QString RSACrpto::private_decrypt(const char *data, int data_len, int padding){
+int RSACrpto::private_decrypt(const char *data, int data_len, char** output, int padding){
     int data_size;
     if(data_len == -1)
         data_size = strlen(data);
     else
         data_size = data_len;
-    char decrypted[4096];
+    char *decrypted = (char*)malloc(RSA_size(keypair) + 1);
     int decrypt_len = RSA_private_decrypt(data_size, (unsigned char*)data, (unsigned char*)decrypted, keypair, padding);
-    return QString::fromUtf8(decrypted, decrypt_len);
+    *output = decrypted;
+    return decrypt_len;
 }
 
-QString RSACrpto::public_encrypt(QString data, int padding){
+int RSACrpto::public_encrypt(QString data, char** output, int padding){
     QByteArray ba = data.toLatin1();
-    return this->public_encrypt(ba.data(), data.length(), padding);
+    return this->public_encrypt(ba.data(), data.length(), output, padding);
 }
 
-QString RSACrpto::public_encrypt(std::string data, int padding){
-    return this->public_encrypt(data.c_str(), data.length(), padding);
+int RSACrpto::public_encrypt(std::string data, char** output, int padding){
+    return this->public_encrypt(data.c_str(), data.length(), output, padding);
 }
 
-QString RSACrpto::public_decrypt(QString data, int padding){
+int RSACrpto::public_decrypt(QString data, char** output, int padding){
     QByteArray ba = data.toLatin1();
-    return this->public_decrypt(ba.data(), data.length(), padding);
+    return this->public_decrypt(ba.data(), data.length(), output, padding);
 }
 
-QString RSACrpto::public_decrypt(std::string data, int padding){
-    return this->public_decrypt(data.c_str(), data.length(), padding);
+int RSACrpto::public_decrypt(std::string data, char** output, int padding){
+    return this->public_decrypt(data.c_str(), data.length(), output, padding);
 }
 
-QString RSACrpto::private_encrypt(QString data, int padding){
+int RSACrpto::private_encrypt(QString data, char** output, int padding){
     QByteArray ba = data.toLatin1();
-    return this->private_encrypt(ba.data(), data.length(), padding);
+    return this->private_encrypt(ba.data(), data.length(), output, padding);
 }
 
-QString RSACrpto::private_encrypt(std::string data, int padding){
-    return this->private_encrypt(data.c_str(), data.length(), padding);
+int RSACrpto::private_encrypt(std::string data, char** output, int padding){
+    return this->private_encrypt(data.c_str(), data.length(), output, padding);
 }
 
-QString RSACrpto::private_decrypt(QString data, int padding){
+int RSACrpto::private_decrypt(QString data, char** output, int padding){
     QByteArray ba = data.toLatin1();
-    return this->private_decrypt(ba.data(), data.length(), padding);
+    return this->private_decrypt(ba.data(), data.length(), output, padding);
 }
 
-QString RSACrpto::private_decrypt(std::string data, int padding){
-    return this->private_decrypt(data.c_str(), data.length(), padding);
+int RSACrpto::private_decrypt(std::string data, char** output, int padding){
+    return this->private_decrypt(data.c_str(), data.length(), output, padding);
 }
 
 RSA* RSACrpto::getKey(){

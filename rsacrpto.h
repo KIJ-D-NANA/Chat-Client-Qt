@@ -21,21 +21,21 @@ public:
     bool setPrivateKey(FILE* public_key);
     bool setPrivateKey(const char* private_key, int private_len = -1);
 
-    QString public_encrypt(QString data, int padding = RSA_PKCS1_OAEP_PADDING);
-    QString public_encrypt(std::string data, int padding = RSA_PKCS1_OAEP_PADDING);
-    QString public_encrypt(const char* data, int data_len = -1, int padding = RSA_PKCS1_OAEP_PADDING);
+    int public_encrypt(QString data, char** output, int padding = RSA_PKCS1_OAEP_PADDING);
+    int public_encrypt(std::string data, char** output, int padding = RSA_PKCS1_OAEP_PADDING);
+    int public_encrypt(const char* data, int data_len = -1, char** output = NULL, int padding = RSA_PKCS1_OAEP_PADDING);
 
-    QString public_decrypt(QString data, int padding = RSA_PKCS1_PADDING);
-    QString public_decrypt(std::string data, int padding = RSA_PKCS1_PADDING);
-    QString public_decrypt(const char* data, int data_len = -1, int padding = RSA_PKCS1_PADDING);
+    int public_decrypt(QString data, char** output, int padding = RSA_PKCS1_PADDING);
+    int public_decrypt(std::string data, char** output, int padding = RSA_PKCS1_PADDING);
+    int public_decrypt(const char* data, int data_len = -1, char** output = NULL, int padding = RSA_PKCS1_PADDING);
 
-    QString private_decrypt(QString data, int padding = RSA_PKCS1_OAEP_PADDING);
-    QString private_decrypt(std::string data, int padding = RSA_PKCS1_OAEP_PADDING);
-    QString private_decrypt(const char* data, int data_len = -1, int padding = RSA_PKCS1_OAEP_PADDING);
+    int private_decrypt(QString data, char** output, int padding = RSA_PKCS1_OAEP_PADDING);
+    int private_decrypt(std::string data, char** output, int padding = RSA_PKCS1_OAEP_PADDING);
+    int private_decrypt(const char* data, int data_len = -1, char** output = NULL, int padding = RSA_PKCS1_OAEP_PADDING);
 
-    QString private_encrypt(QString data, int padding = RSA_PKCS1_PADDING);
-    QString private_encrypt(std::string data, int padding = RSA_PKCS1_PADDING);
-    QString private_encrypt(const char* data, int data_len = -1, int padding = RSA_PKCS1_PADDING);
+    int private_encrypt(QString data, char** output, int padding = RSA_PKCS1_PADDING);
+    int private_encrypt(std::string data, char** output, int padding = RSA_PKCS1_PADDING);
+    int private_encrypt(const char* data, int data_len = -1, char** output = NULL, int padding = RSA_PKCS1_PADDING);
 
     RSA* getKey();
 
